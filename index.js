@@ -6,6 +6,42 @@ const FOV = Math.PI * 0.5;
 const SCREEN_WIDTH = 500;
 const PLAYER_STEP_LEN = 0.5;
 const PLAYER_SPEED = 2;
+class Color {
+    r;
+    g;
+    b;
+    a;
+    constructor(r, g, b, a) {
+        this.r = r;
+        this.g = g;
+        this.b = b;
+        this.a = a;
+    }
+    static red() {
+        return new Color(1, 0, 0, 1);
+    }
+    static green() {
+        return new Color(0, 1, 0, 1);
+    }
+    static blue() {
+        return new Color(0, 0, 1, 1);
+    }
+    static yellow() {
+        return new Color(1, 1, 0, 1);
+    }
+    static pink() {
+        return new Color(1, 0, 1, 1);
+    }
+    static cyan() {
+        return new Color(0, 1, 1, 1);
+    }
+    brightness(factor) {
+        return new Color(factor * this.r, factor * this.g, factor * this.b, this.a);
+    }
+    toStyle() {
+        return `rgba(${Math.floor(this.r * 255)}, ${Math.floor(this.g * 255)}, ${Math.floor(this.b * 255)}, ${this.a})`;
+    }
+}
 class Vector2 {
     x;
     y;
@@ -150,7 +186,7 @@ function minimap(ctx, player, position, size, scene) {
         for (let x = 0; x < gridSize.x; ++x) {
             const color = scene[y][x];
             if (color !== null) {
-                ctx.fillStyle = color;
+                ctx.fillStyle = color.toStyle();
                 ctx.fillRect(x, y, 1, 1);
             }
         }
@@ -198,7 +234,7 @@ function renderScene(ctx, player, scene) {
                 const v = p.sub(player.position);
                 const d = Vector2.fromAngle(player.direction);
                 let stripHeight = ctx.canvas.height / v.dot(d);
-                ctx.fillStyle = color;
+                ctx.fillStyle = color.brightness(1 / v.dot(d)).toStyle();
                 ctx.fillRect(x * stripWidth, (ctx.canvas.height - stripHeight) * 0.5, stripWidth, stripHeight);
             }
         }
@@ -224,9 +260,9 @@ function renderGame(ctx, player, scene) {
     if (ctx === null)
         throw new Error("2D context is not supported");
     let scene = [
-        [null, null, "cyan", "purple", null, null, null, null, null],
-        [null, null, null, "yellow", null, null, null, null, null],
-        [null, "red", "green", "blue", null, null, null, null, null],
+        [null, null, Color.cyan(), Color.pink(), null, null, null, null, null],
+        [null, null, null, Color.yellow(), null, null, null, null, null],
+        [null, Color.red(), Color.green(), Color.blue(), null, null, null, null, null],
         [null, null, null, null, null, null, null, null, null],
         [null, null, null, null, null, null, null, null, null],
         [null, null, null, null, null, null, null, null, null],
