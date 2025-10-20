@@ -1,10 +1,11 @@
 "use strict";
 const EPS = 1e-6;
-const NEAR_CLIPPING_PLANE = 1;
+const NEAR_CLIPPING_PLANE = 0.25;
 const FAR_CLIPPING_PLANE = 10.0;
 const FOV = Math.PI * 0.5;
 const SCREEN_WIDTH = 500;
 const PLAYER_STEP_LEN = 0.5;
+const PLAYER_SPEED = 2;
 class Vector2 {
     x;
     y;
@@ -38,7 +39,7 @@ class Vector2 {
     }
     norm() {
         const l = this.length();
-        if (l == 0)
+        if (l === 0)
             return new Vector2(0, 0);
         return new Vector2(this.x / l, this.y / l);
     }
@@ -47,9 +48,6 @@ class Vector2 {
     }
     rot90() {
         return new Vector2(-this.y, this.x);
-    }
-    distanceTo(that) {
-        return that.sub(this).length();
     }
     sqrDistanceTo(that) {
         return that.sub(this).sqrLength();
@@ -104,7 +102,7 @@ function rayStep(p1, p2) {
             const y3 = snap(p2.y, d.y);
             const x3 = (y3 - c) / k;
             const p3t = new Vector2(x3, y3);
-            if (p2.distanceTo(p3t) < p2.distanceTo(p3)) {
+            if (p2.sqrDistanceTo(p3t) < p2.sqrDistanceTo(p3)) {
                 p3 = p3t;
             }
         }
@@ -235,64 +233,71 @@ function renderGame(ctx, player, scene) {
         [null, null, null, null, null, null, null, null, null]
     ];
     const player = new Player(sceneSize(scene).mul(new Vector2(0.63, 0.63)), Math.PI * 1.25);
+    let movingForward = false;
+    let movingBackward = false;
+    let turningLeft = false;
+    let turningRight = false;
     window.addEventListener("keydown", (e) => {
         if (!e.repeat) {
             switch (e.code) {
                 case 'KeyW':
-                    {
-                        player.position = player.position
-                            .add(Vector2.fromAngle(player.direction).scale(PLAYER_STEP_LEN));
-                        renderGame(ctx, player, scene);
-                    }
-                    break;
-                case 'ArrowUp':
-                    {
-                        player.position = player.position
-                            .add(Vector2.fromAngle(player.direction).scale(PLAYER_STEP_LEN));
-                        renderGame(ctx, player, scene);
-                    }
+                    movingForward = true;
                     break;
                 case 'KeyS':
-                    {
-                        player.position = player.position
-                            .sub(Vector2.fromAngle(player.direction).scale(PLAYER_STEP_LEN));
-                        renderGame(ctx, player, scene);
-                    }
-                    break;
-                case 'ArrowDown':
-                    {
-                        player.position = player.position
-                            .sub(Vector2.fromAngle(player.direction).scale(PLAYER_STEP_LEN));
-                        renderGame(ctx, player, scene);
-                    }
-                    break;
-                case 'KeyD':
-                    {
-                        player.direction += Math.PI * 0.1;
-                        renderGame(ctx, player, scene);
-                    }
-                    break;
-                case 'ArrowRight':
-                    {
-                        player.direction += Math.PI * 0.1;
-                        renderGame(ctx, player, scene);
-                    }
+                    movingBackward = true;
                     break;
                 case 'KeyA':
-                    {
-                        player.direction -= Math.PI * 0.1;
-                        renderGame(ctx, player, scene);
-                    }
+                    turningLeft = true;
                     break;
-                case 'ArrowLeft':
-                    {
-                        player.direction -= Math.PI * 0.1;
-                        renderGame(ctx, player, scene);
-                    }
+                case 'KeyD':
+                    turningRight = true;
                     break;
             }
         }
     });
-    renderGame(ctx, player, scene);
+    window.addEventListener("keyup", (e) => {
+        if (!e.repeat) {
+            switch (e.code) {
+                case 'KeyW':
+                    movingForward = false;
+                    break;
+                case 'KeyS':
+                    movingBackward = false;
+                    break;
+                case 'KeyA':
+                    turningLeft = false;
+                    break;
+                case 'KeyD':
+                    turningRight = false;
+                    break;
+            }
+        }
+    });
+    let prevTimestamp = 0;
+    const frame = (timestamp) => {
+        const deltaTime = (timestamp - prevTimestamp) / 1000;
+        prevTimestamp = timestamp;
+        let velocity = Vector2.zero();
+        let angularVelocity = 0.0;
+        if (movingForward) {
+            velocity = velocity.add(Vector2.fromAngle(player.direction).scale(PLAYER_SPEED));
+        }
+        if (movingBackward) {
+            velocity = velocity.sub(Vector2.fromAngle(player.direction).scale(PLAYER_SPEED));
+        }
+        if (turningLeft) {
+            angularVelocity -= Math.PI * 0.75;
+        }
+        if (turningRight) {
+            angularVelocity += Math.PI * 0.75;
+        }
+        player.direction = player.direction + angularVelocity * deltaTime;
+        player.position = player.position.add(velocity.scale(deltaTime));
+        renderGame(ctx, player, scene);
+        window.requestAnimationFrame(frame);
+    };
+    window.requestAnimationFrame((timestamp) => {
+        prevTimestamp = timestamp;
+        window.requestAnimationFrame(frame);
+    });
 })();
-//# sourceMappingURL=index.js.map
