@@ -3,7 +3,7 @@ const EPS = 1e-6;
 const NEAR_CLIPPING_PLANE = 0.25;
 const FAR_CLIPPING_PLANE = 10.0;
 const FOV = Math.PI * 0.5;
-const SCREEN_WIDTH = 500;
+const SCREEN_WIDTH = 300;
 const PLAYER_STEP_LEN = 0.5;
 const PLAYER_SPEED = 2;
 class Color {
@@ -29,7 +29,7 @@ class Color {
     static yellow() {
         return new Color(1, 1, 0, 1);
     }
-    static pink() {
+    static purple() {
         return new Color(1, 0, 1, 1);
     }
     static cyan() {
@@ -39,7 +39,11 @@ class Color {
         return new Color(factor * this.r, factor * this.g, factor * this.b, this.a);
     }
     toStyle() {
-        return `rgba(${Math.floor(this.r * 255)}, ${Math.floor(this.g * 255)}, ${Math.floor(this.b * 255)}, ${this.a})`;
+        return `rgba(`
+            + `${Math.floor(this.r * 255)}, `
+            + `${Math.floor(this.g * 255)}, `
+            + `${Math.floor(this.b * 255)}, `
+            + `${this.a})`;
     }
 }
 class Vector2 {
@@ -126,12 +130,12 @@ function hittingCell(p1, p2) {
 function rayStep(p1, p2) {
     let p3 = p2;
     const d = p2.sub(p1);
-    if (d.x != 0) {
+    if (d.x !== 0) {
         const k = d.y / d.x;
         const c = p1.y - k * p1.x;
         {
             const x3 = snap(p2.x, d.x);
-            const y3 = k * x3 + c;
+            const y3 = x3 * k + c;
             p3 = new Vector2(x3, y3);
         }
         if (k !== 0) {
@@ -174,39 +178,6 @@ function sceneSize(scene) {
     }
     return new Vector2(x, y);
 }
-function minimap(ctx, player, position, size, scene) {
-    ctx.save();
-    const gridSize = sceneSize(scene);
-    ctx.translate(...position.array());
-    ctx.scale(...size.div(gridSize).array());
-    ctx.fillStyle = '#181818';
-    ctx.fillRect(0, 0, ...gridSize.array());
-    ctx.lineWidth = 0.1;
-    for (let y = 0; y < gridSize.y; ++y) {
-        for (let x = 0; x < gridSize.x; ++x) {
-            const color = scene[y][x];
-            if (color !== null) {
-                ctx.fillStyle = color.toStyle();
-                ctx.fillRect(x, y, 1, 1);
-            }
-        }
-    }
-    ctx.strokeStyle = "#303030";
-    for (let x = 0; x <= gridSize.x; ++x) {
-        strokeLine(ctx, new Vector2(x, 0), new Vector2(x, gridSize.y));
-    }
-    for (let y = 0; y <= gridSize.y; ++y) {
-        strokeLine(ctx, new Vector2(0, y), new Vector2(gridSize.x, y));
-    }
-    ctx.fillStyle = "magenta";
-    fillCircle(ctx, player.position, 0.15);
-    const [p1, p2] = player.fovRange();
-    ctx.strokeStyle = "magenta";
-    strokeLine(ctx, p1, p2);
-    strokeLine(ctx, player.position, p1);
-    strokeLine(ctx, player.position, p2);
-    ctx.restore();
-}
 class Player {
     position;
     direction;
@@ -222,6 +193,42 @@ class Player {
         return [p1, p2];
     }
 }
+function renderMinimap(ctx, player, position, size, scene) {
+    ctx.save();
+    const gridSize = sceneSize(scene);
+    ctx.translate(...position.array());
+    ctx.scale(...size.div(gridSize).array());
+    ctx.fillStyle = "#181818";
+    ctx.fillRect(0, 0, ...gridSize.array());
+    ctx.lineWidth = 0.1;
+    for (let y = 0; y < gridSize.y; ++y) {
+        for (let x = 0; x < gridSize.x; ++x) {
+            const cell = scene[y][x];
+            if (cell instanceof Color) {
+                ctx.fillStyle = cell.toStyle();
+                ctx.fillRect(x, y, 1, 1);
+            }
+            else if (cell instanceof HTMLImageElement) {
+                ctx.drawImage(cell, x, y, 1, 1);
+            }
+        }
+    }
+    ctx.strokeStyle = "#303030";
+    for (let x = 0; x <= gridSize.x; ++x) {
+        strokeLine(ctx, new Vector2(x, 0), new Vector2(x, gridSize.y));
+    }
+    for (let y = 0; y <= gridSize.y; ++y) {
+        strokeLine(ctx, new Vector2(0, y), new Vector2(gridSize.x, y));
+    }
+    ctx.fillStyle = "magenta";
+    fillCircle(ctx, player.position, 0.2);
+    const [p1, p2] = player.fovRange();
+    ctx.strokeStyle = "magenta";
+    strokeLine(ctx, p1, p2);
+    strokeLine(ctx, player.position, p1);
+    strokeLine(ctx, player.position, p2);
+    ctx.restore();
+}
 function renderScene(ctx, player, scene) {
     const stripWidth = Math.ceil(ctx.canvas.width / SCREEN_WIDTH);
     const [r1, r2] = player.fovRange();
@@ -229,13 +236,27 @@ function renderScene(ctx, player, scene) {
         const p = castRay(scene, player.position, r1.lerp(r2, x / SCREEN_WIDTH));
         const c = hittingCell(player.position, p);
         if (insideScene(scene, c)) {
-            const color = scene[c.y][c.x];
-            if (color !== null) {
+            const cell = scene[c.y][c.x];
+            if (cell instanceof Color) {
                 const v = p.sub(player.position);
                 const d = Vector2.fromAngle(player.direction);
-                let stripHeight = ctx.canvas.height / v.dot(d);
-                ctx.fillStyle = color.brightness(1 / v.dot(d)).toStyle();
+                const stripHeight = ctx.canvas.height / v.dot(d);
+                ctx.fillStyle = cell.brightness(1 / v.dot(d)).toStyle();
                 ctx.fillRect(x * stripWidth, (ctx.canvas.height - stripHeight) * 0.5, stripWidth, stripHeight);
+            }
+            else if (cell instanceof HTMLImageElement) {
+                const v = p.sub(player.position);
+                const d = Vector2.fromAngle(player.direction);
+                const stripHeight = ctx.canvas.height / v.dot(d);
+                let u = 0;
+                const t = p.sub(c);
+                if ((Math.abs(t.x) < EPS || Math.abs(t.x - 1) < EPS) && t.y > 0) {
+                    u = t.y;
+                }
+                else {
+                    u = t.x;
+                }
+                ctx.drawImage(cell, u * cell.width, 0, 1, cell.height, x * stripWidth, (ctx.canvas.height - stripHeight) * 0.5, stripWidth, stripHeight);
             }
         }
     }
@@ -244,29 +265,42 @@ function renderGame(ctx, player, scene) {
     const minimapPosition = Vector2.zero().add(canvasSize(ctx).scale(0.03));
     const cellSize = ctx.canvas.width * 0.03;
     const minimapSize = sceneSize(scene).scale(cellSize);
-    ctx.fillStyle = "#181818";
+    ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     renderScene(ctx, player, scene);
-    minimap(ctx, player, minimapPosition, minimapSize, scene);
+    renderMinimap(ctx, player, minimapPosition, minimapSize, scene);
 }
-(() => {
+async function loadImageData(url) {
+    const image = new Image();
+    image.src = url;
+    return new Promise((resolve, reject) => {
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+    });
+}
+(async () => {
     const game = document.getElementById("game");
     if (game === null)
-        throw new Error("No canvas with id 'game' is found");
+        throw new Error("No canvas with id `game` is found");
     const factor = 80;
     game.width = 16 * factor;
     game.height = 9 * factor;
     const ctx = game.getContext("2d");
     if (ctx === null)
         throw new Error("2D context is not supported");
-    let scene = [
-        [null, null, Color.cyan(), Color.pink(), null, null, null, null, null],
-        [null, null, null, Color.yellow(), null, null, null, null, null],
-        [null, Color.red(), Color.green(), Color.blue(), null, null, null, null, null],
+    const wood = await loadImageData("images/wood.png");
+    const redbrick = await loadImageData("images/redbrick.png");
+    const pillar = await loadImageData("images/pillar.png");
+    const mossy = await loadImageData("images/mossy.png");
+    const barrel = await loadImageData("images/barrel.png");
+    const scene = [
+        [null, null, wood, Color.purple(), null, null, null, null, null],
+        [null, null, null, barrel, null, null, null, null, null],
+        [null, redbrick, pillar, mossy, null, null, null, null, null],
         [null, null, null, null, null, null, null, null, null],
         [null, null, null, null, null, null, null, null, null],
+        [null, null, redbrick, null, null, null, null, null, null],
         [null, null, null, null, null, null, null, null, null],
-        [null, null, null, null, null, null, null, null, null]
     ];
     const player = new Player(sceneSize(scene).mul(new Vector2(0.63, 0.63)), Math.PI * 1.25);
     let movingForward = false;
@@ -322,10 +356,10 @@ function renderGame(ctx, player, scene) {
             velocity = velocity.sub(Vector2.fromAngle(player.direction).scale(PLAYER_SPEED));
         }
         if (turningLeft) {
-            angularVelocity -= Math.PI * 0.75;
+            angularVelocity -= Math.PI;
         }
         if (turningRight) {
-            angularVelocity += Math.PI * 0.75;
+            angularVelocity += Math.PI;
         }
         player.direction = player.direction + angularVelocity * deltaTime;
         player.position = player.position.add(velocity.scale(deltaTime));
